@@ -232,26 +232,30 @@ def train_gt_bbox(opt, device):
     logger.info(f"{num_interaction_classes} Possible Interactions")
     logger.info(f"{num_spatial_classes} spatial relations: {[interaction_classes[idx] for idx in spatial_class_idxes]}")
     logger.info(f"{num_action_classes} actions: {[interaction_classes[idx] for idx in action_class_idxes]}")
+    # Check if we should use separate head (only if there are spatial classes)
+    use_separate_head = separate_head and num_spatial_classes > 0
+    if use_separate_head != separate_head:
+        logger.info(f"separate_head set to {separate_head} in config, but no spatial classes found. Using single head instead.")
     # analyse training dataset, get histogram of triplets and interactions
     if loss_balance_type == "inverse":
         triplet_info, weight_info = vidhoi_train_dataset.analyse_split_weight(
             save_dir=output_path / run_id,
             method=loss_balance_type,
-            separate_head=separate_head,
+            separate_head=use_separate_head,
             power=loss_balance_power,
         )
     elif loss_balance_type == "effective":
         triplet_info, weight_info = vidhoi_train_dataset.analyse_split_weight(
             save_dir=output_path / run_id,
             method=loss_balance_type,
-            separate_head=separate_head,
+            separate_head=use_separate_head,
             beta=loss_balance_beta,
         )
     else:
         triplet_info, weight_info = vidhoi_train_dataset.analyse_split_weight(
             save_dir=output_path / run_id,
             method=loss_balance_type,
-            separate_head=separate_head,
+            separate_head=use_separate_head,
         )
     logger.info(
         f"{len(triplet_info['triplet_train_hist'])} triplet classes in training subset, "
@@ -302,8 +306,11 @@ def train_gt_bbox(opt, device):
         f"ResNet101 feature backbone loaded from {backbone_model_path}. Finetuning weights: {trainable_backbone_names}"
     )
     # separate to spatial relation head and action head
+    # Check if we should use separate head (only if there are spatial classes)
+    use_separate_head = separate_head and num_spatial_classes > 0
     num_interaction_classes_loss = num_interaction_classes
-    if separate_head:
+    if use_separate_head:
+        # Only use separate head if there are spatial classes
         # NOTE mlm loss needs no_interaction since there could be no positives in one head
         if loss_type == "mlm":
             num_interaction_classes_loss += 2
@@ -312,6 +319,9 @@ def train_gt_bbox(opt, device):
             separate_head_num = [num_spatial_classes, -1]
         separate_head_name = ["spatial_head", "action_head"]
     else:
+        # If no spatial classes, use single head
+        if separate_head and num_spatial_classes == 0:
+            logger.info("No spatial classes found, using single interaction head instead of separate heads")
         # NOTE mlm loss needs no_interaction
         if loss_type == "mlm":
             num_interaction_classes_loss += 1
@@ -385,12 +395,33 @@ def train_gt_bbox(opt, device):
             f"gaze concat={sttran_gaze_model.no_gaze}, separate_head={sttran_gaze_model.separate_head}"
         )
     sttran_gaze_model = sttran_gaze_model.to(device)
+    
+    # Load pretrained weights if provided
+    if opt.pretrained:
+        pretrained_path = Path(opt.pretrained)
+        if not pretrained_path.exists():
+            logger.warning(f"Pretrained weights file not found: {pretrained_path}")
+            logger.warning("Training from scratch...")
+        else:
+            logger.info(f"Loading pretrained weights from {pretrained_path}")
+            try:
+                pretrained_state_dict = torch.load(pretrained_path, map_location=device)
+                # Try to load with strict=False to handle minor mismatches
+                incompatibles = sttran_gaze_model.load_state_dict(pretrained_state_dict, strict=False)
+                if incompatibles.missing_keys:
+                    logger.warning(f"Missing keys: {incompatibles.missing_keys}")
+                if incompatibles.unexpected_keys:
+                    logger.warning(f"Unexpected keys: {incompatibles.unexpected_keys}")
+                logger.info("Pretrained weights loaded successfully!")
+            except Exception as e:
+                logger.error(f"Error loading pretrained weights: {e}")
+                logger.error("Training from scratch...")
 
     ## Loss function & optimizer
     # Multi-label margin loss
     if loss_type == "mlm":
         # weight not works for mlm # NOTE add sigmoid before loss!
-        if separate_head:
+        if use_separate_head:
             loss_fn_dict = {
                 "spatial_head": nn.MultiLabelMarginLoss(reduction="mean"),
                 "action_head": nn.MultiLabelMarginLoss(reduction="mean"),
@@ -408,7 +439,7 @@ def train_gt_bbox(opt, device):
             loss_type_dict = {"interaction_head": "mlm"}
     # Focal loss
     elif loss_type == "focal":
-        if separate_head:
+        if use_separate_head:
             loss_fn_dict = {
                 "spatial_head": FocalBCEWithLogitLoss(
                     gamma=loss_focal_gamma,
@@ -443,7 +474,7 @@ def train_gt_bbox(opt, device):
             loss_type_dict = {"interaction_head": "focal"}
     # Binary cross-entropy loss with logit loss, not using weight here
     else:
-        if separate_head:
+        if use_separate_head:
             loss_fn_dict = {
                 "spatial_head": nn.BCEWithLogitsLoss(
                     # pos_weight=torch.Tensor(weight_info["weight_train_spatial"]).to(
@@ -474,7 +505,7 @@ def train_gt_bbox(opt, device):
             # no weight for validation, use bce
             loss_val_dict = {"interaction_head": nn.BCEWithLogitsLoss(reduction="mean")}
             loss_type_dict = {"interaction_head": "bce"}
-    if separate_head:
+    if use_separate_head:
         class_idxes_dict = {"spatial_head": spatial_class_idxes, "action_head": action_class_idxes}
         loss_gt_dict = {"spatial_head": "spatial_gt", "action_head": "action_gt"}
     else:
@@ -683,6 +714,9 @@ def parse_opt():
         "--gaze", type=str, default="concat", help="how to use gaze features: no, concat, cross, cross_all"
     )
     parser.add_argument("--global-token", action="store_true", help="Use global token, only for cross-attention mode")
+    parser.add_argument(
+        "--pretrained", type=str, default="", help="Path to pretrained model weights (.pt file) for finetuning"
+    )
 
     opt = parser.parse_args()
     return opt

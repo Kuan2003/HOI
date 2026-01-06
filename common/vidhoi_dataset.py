@@ -623,8 +623,8 @@ class VidHOIDataset(Dataset):
                 json_dict_weight["weight_val_spatial"] = weight_val[0].tolist()
                 json_dict_weight["weight_val_action"] = weight_val[1].tolist()
             else:
-                json_dict_weight["weight_train"] = weight_train
-                json_dict_weight["weight_val"] = weight_val
+                json_dict_weight["weight_train"] = weight_train.tolist()
+                json_dict_weight["weight_val"] = weight_val.tolist()
             json_txt_weight = json.dumps(json_dict_weight)
             with (save_dir / "class_weight.json").open("w") as f:
                 f.write(json_txt_weight)

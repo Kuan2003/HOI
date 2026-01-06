@@ -25,7 +25,7 @@ from common.model_utils import (
     construct_sliding_window,
     generate_sliding_window_mask,
 )
-from common.plot import draw_bboxes
+from common.plot import draw_bboxes, draw_hoi_annotations, draw_hoi_list_on_frame
 from common.metrics_utils import generate_triplets_scores
 
 from modules.object_tracking import HeadTracking, ObjectTracking
@@ -194,6 +194,9 @@ def main(opt):
     gaze_list = []
     hoi_list = []
     result_list = []
+    # Variable to store current HOI for drawing on frames
+    current_hoi_info = []
+    current_window_result = {}
     # FIFO queues for sliding window
     frames_queue = deque(maxlen=sttran_sliding_window)
     frame_ids_queue = deque(maxlen=sttran_sliding_window)
@@ -253,6 +256,45 @@ def main(opt):
             detection_dict["confidences"].append(confs)
             detection_dict["frame_ids"].append(meta_info["frame_count"])
             gaze_list.append(frame_gaze_dict)
+        # Add HOI annotations to frame if available
+        if len(current_hoi_info) > 0 and len(current_window_result) > 0:
+            # Prepare HOI triplets for visualization
+            hoi_triplets = []
+            object_names_for_hoi = []
+            ids_for_hoi = []
+            
+            # Get current frame bboxes and info
+            if len(bboxes) > 0:
+                for score, idx_pair, interaction_pred in current_hoi_info:
+                    if (idx_pair < len(current_window_result.get("pair_idxes", [])) and 
+                        len(current_window_result.get("pair_idxes", [])) > 0):
+                        
+                        subj_idx = current_window_result["pair_idxes"][idx_pair][0]
+                        obj_idx = current_window_result["pair_idxes"][idx_pair][1]
+                        
+                        if (subj_idx < len(current_window_result.get("pred_labels", [])) and 
+                            obj_idx < len(current_window_result.get("pred_labels", []))):
+                            
+                            subj_cls = current_window_result["pred_labels"][subj_idx]
+                            obj_cls = current_window_result["pred_labels"][obj_idx]
+                            subj_name = object_classes[subj_cls] if subj_cls < len(object_classes) else f"obj{subj_cls}"
+                            obj_name = object_classes[obj_cls] if obj_cls < len(object_classes) else f"obj{obj_cls}"
+                            interaction_name = interaction_classes[interaction_pred] if interaction_pred < len(interaction_classes) else f"int{interaction_pred}"
+                            
+                            hoi_triplets.append((subj_idx, interaction_name, obj_idx, score))
+                
+                # Also prepare object names and IDs for the current frame
+                for i, (label, obj_id) in enumerate(zip(labels, ids)):
+                    object_names_for_hoi.append(object_classes[label] if label < len(object_classes) else f"obj{label}")
+                    ids_for_hoi.append(obj_id)
+                
+                # Draw HOI annotations if we have valid bboxes
+                if len(hoi_triplets) > 0 and len(bboxes) > 0:
+                    frame_annotated = draw_hoi_annotations(
+                        frame_annotated, hoi_triplets, bboxes, 
+                        object_names_for_hoi, ids_for_hoi
+                    )
+        
         # write video frame
         video_writer.write(frame_annotated)
 
@@ -387,6 +429,11 @@ def main(opt):
                 top_k=100,
                 thres=hoi_thres,
             )
+            
+            # Store current HOI info for drawing on frames
+            current_hoi_info = triplets_scores
+            current_window_result = window_result
+            
             s_hois = "-------------------------------\n"
             s_hois += f"Frame {idx}/{frame_num}:\n"
             for score, idx_pair, interaction_pred in triplets_scores:
@@ -400,6 +447,7 @@ def main(opt):
                 obj_id = window_result["ids"][obj_idx]
                 interaction_name = interaction_classes[interaction_pred]
                 s_hois += f"{subj_name}{subj_id} - {interaction_name} - {obj_name}{obj_id}: {score}\n"
+                
             hoi_list.append(s_hois)
             if print_hois:
                 print(s_hois)
