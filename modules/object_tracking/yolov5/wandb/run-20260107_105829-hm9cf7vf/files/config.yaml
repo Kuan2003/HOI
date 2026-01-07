@@ -1,0 +1,184 @@
+_wandb:
+    value:
+        cli_version: 0.21.1
+        e:
+            vqz6v12a2rohw8hfxthleylxvue4ipil:
+                args:
+                    - --img
+                    - "640"
+                    - --batch
+                    - "16"
+                    - --epochs
+                    - "100"
+                    - --data
+                    - /home/kuan/Work_Space/Thuc_tap/HOI/yolov5_dataset/vidhoi_custom.yaml
+                    - --weights
+                    - /home/kuan/Work_Space/Thuc_tap/HOI/src/hoi-prediction-gaze-transformer/weights/yolov5/yolov5l.pt
+                    - --name
+                    - vidhoi_custom_finetune
+                    - --cache
+                codePath: modules/object_tracking/yolov5/train.py
+                codePathLocal: train.py
+                cpu_count: 8
+                cpu_count_logical: 16
+                cudaVersion: "12.9"
+                disk:
+                    /:
+                        total: "502392610816"
+                        used: "138028462080"
+                email: quandaica03@gmail.com
+                executable: /home/kuan/miniconda3/envs/hoi/bin/python
+                git:
+                    commit: ba182c243e89a197a824d007a1dfd814ab1258e1
+                    remote: https://github.com/Kuan2003/HOI.git
+                gpu: NVIDIA GeForce GTX 1650
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Turing
+                      cudaCores: 896
+                      memoryTotal: "4294967296"
+                      name: NVIDIA GeForce GTX 1650
+                      uuid: GPU-a64c26d8-93f8-05bc-5cb5-c07d9ca0e7db
+                host: kuan
+                memory:
+                    total: "16152829952"
+                os: Linux-6.8.0-90-generic-x86_64-with-glibc2.35
+                program: /home/kuan/Work_Space/Thuc_tap/HOI/src/hoi-prediction-gaze-transformer/modules/object_tracking/yolov5/train.py
+                python: CPython 3.9.18
+                root: /home/kuan/Work_Space/Thuc_tap/HOI/src/hoi-prediction-gaze-transformer/modules/object_tracking/yolov5
+                startedAt: "2026-01-07T03:58:29.977850Z"
+                writerId: vqz6v12a2rohw8hfxthleylxvue4ipil
+        m: []
+        python_version: 3.9.18
+        t:
+            "1":
+                - 1
+                - 41
+            "2":
+                - 1
+                - 41
+            "3":
+                - 13
+                - 16
+            "4": 3.9.18
+            "5": 0.21.1
+            "12": 0.21.1
+            "13": linux-x86_64
+artifact_alias:
+    value: latest
+batch_size:
+    value: 16
+bbox_interval:
+    value: -1
+bucket:
+    value: ""
+cache:
+    value: ram
+cfg:
+    value: ""
+cos_lr:
+    value: false
+data:
+    value: /home/kuan/Work_Space/Thuc_tap/HOI/yolov5_dataset/vidhoi_custom.yaml
+data_dict:
+    value:
+        names:
+            "0": person
+            "1": cup
+            "2": plate
+            "3": box
+        nc: 4
+        path: /home/kuan/Work_Space/Thuc_tap/HOI/yolov5_dataset
+        train: /home/kuan/Work_Space/Thuc_tap/HOI/yolov5_dataset/train.txt
+        val: /home/kuan/Work_Space/Thuc_tap/HOI/yolov5_dataset/val.txt
+device:
+    value: ""
+entity:
+    value: null
+epochs:
+    value: 100
+evolve:
+    value: null
+exist_ok:
+    value: false
+freeze:
+    value:
+        - 0
+hyp:
+    value:
+        anchor_t: 4
+        box: 0.05
+        cls: 0.5
+        cls_pw: 1
+        copy_paste: 0
+        degrees: 0
+        fl_gamma: 0
+        fliplr: 0.5
+        flipud: 0
+        hsv_h: 0.015
+        hsv_s: 0.7
+        hsv_v: 0.4
+        iou_t: 0.2
+        lr0: 0.01
+        lrf: 0.01
+        mixup: 0
+        momentum: 0.937
+        mosaic: 1
+        obj: 1
+        obj_pw: 1
+        perspective: 0
+        scale: 0.5
+        shear: 0
+        translate: 0.1
+        warmup_bias_lr: 0.1
+        warmup_epochs: 3
+        warmup_momentum: 0.8
+        weight_decay: 0.0005
+image_weights:
+    value: false
+imgsz:
+    value: 640
+label_smoothing:
+    value: 0
+local_rank:
+    value: -1
+multi_scale:
+    value: false
+name:
+    value: vidhoi_custom_finetune
+noautoanchor:
+    value: false
+noplots:
+    value: false
+nosave:
+    value: false
+noval:
+    value: false
+optimizer:
+    value: SGD
+patience:
+    value: 100
+project:
+    value: runs/train
+quad:
+    value: false
+rect:
+    value: false
+resume:
+    value: false
+save_dir:
+    value: runs/train/vidhoi_custom_finetune
+save_period:
+    value: -1
+seed:
+    value: 0
+single_cls:
+    value: false
+sync_bn:
+    value: false
+upload_dataset:
+    value: false
+weights:
+    value: /home/kuan/Work_Space/Thuc_tap/HOI/src/hoi-prediction-gaze-transformer/weights/yolov5/yolov5l.pt
+workers:
+    value: 8

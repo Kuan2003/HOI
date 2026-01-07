@@ -1,7 +1,7 @@
 # Logs
 runs/
 debug/
-wandb/
+
 output/
 
 # Weights
