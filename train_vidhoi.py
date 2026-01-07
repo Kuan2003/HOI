@@ -576,8 +576,11 @@ def train_gt_bbox(opt, device):
             logger.fatal("Loss NaN, stop")
             return 1
         metrics["train/loss"] = train_mloss["mloss"]
-        metrics["train/loss_spatial"] = train_mloss["mloss_spatial_head"]
-        metrics["train/loss_action"] = train_mloss["mloss_action_head"]
+        if use_separate_head:
+            metrics["train/loss_spatial"] = train_mloss["mloss_spatial_head"]
+            metrics["train/loss_action"] = train_mloss["mloss_action_head"]
+        else:
+            metrics["train/loss_interaction"] = train_mloss["mloss_interaction_head"]
         metrics["train/lr"] = epoch_lr
         json_clip_losses_logger.add_entry(train_clip_losses, epoch)
         # save model and backbone
@@ -638,8 +641,11 @@ def train_gt_bbox(opt, device):
                     )
             # log val loss
             metrics["val/loss"] = val_mloss["mloss"]
-            metrics["val/loss_spatial"] = val_mloss["mloss_spatial_head"]
-            metrics["val/loss_action"] = val_mloss["mloss_action_head"]
+            if use_separate_head:
+                metrics["val/loss_spatial"] = val_mloss["mloss_spatial_head"]
+                metrics["val/loss_action"] = val_mloss["mloss_action_head"]
+            else:
+                metrics["val/loss_interaction"] = val_mloss["mloss_interaction_head"]
             val_log_info = f"Val Epoch {epoch}: loss {val_mloss['mloss']:.4f}, time {val_used_time} "
             # mAP independent to threshold, but has different methods
             metrics["metrics/mAP"] = np.nanmean(metrics_dict["ap"])

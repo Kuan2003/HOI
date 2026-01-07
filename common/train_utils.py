@@ -90,7 +90,8 @@ def train_one_epoch_gt_bbox(
             continue
 
         # concatenate the batch to a single sequence
-        interaction_gt_names = ["interactions_gt", *list(loss_gt_dict.values())]
+        # Remove duplicates from interaction_gt_names (e.g., when using single head, "interactions_gt" appears twice)
+        interaction_gt_names = list(dict.fromkeys(["interactions_gt", *list(loss_gt_dict.values())]))
         entry_batch, _ = cat_batch(
             entry_list,
             sampling_mode,
@@ -302,7 +303,8 @@ def fill_sttran_entry_train(
         "im_idxes_gt": gt_entry["im_idxes_gt"],  # ground-truth im_idxes
     }
     # ground-truth separated head
-    interaction_gt_names = ["interactions_gt", *list(loss_gt_dict.values())]
+    # Remove duplicates (e.g., when using single head, "interactions_gt" appears twice)
+    interaction_gt_names = list(dict.fromkeys(["interactions_gt", *list(loss_gt_dict.values())]))
     for gt_name in interaction_gt_names:
         entry[gt_name] = gt_entry[gt_name]
     return entry
@@ -373,7 +375,8 @@ def cat_batch(entry_list, sampling_mode, sliding_window, interaction_gt_names, s
     entry_batch["union_feats"] = torch.cat(entry_batch["union_feats"])
     entry_batch["spatial_masks"] = torch.cat(entry_batch["spatial_masks"])
     entry_batch["obj_heatmaps"] = torch.cat(entry_batch["obj_heatmaps"])
-    for gt_name in interaction_gt_names:
+    # Remove duplicates from interaction_gt_names to avoid double concatenation
+    for gt_name in set(interaction_gt_names):
         entry_batch[gt_name] = torch.cat(entry_batch[gt_name])
     entry_batch["exist_mask"] = torch.cat(entry_batch["exist_mask"])
     entry_batch["change_mask"] = torch.cat(entry_batch["change_mask"])
