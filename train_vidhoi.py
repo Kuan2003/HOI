@@ -396,27 +396,74 @@ def train_gt_bbox(opt, device):
         )
     sttran_gaze_model = sttran_gaze_model.to(device)
     
+    # # Load pretrained weights if provided
+    # if opt.pretrained:
+    #     pretrained_path = Path(opt.pretrained)
+    #     if not pretrained_path.exists():
+    #         logger.warning(f"Pretrained weights file not found: {pretrained_path}")
+    #         logger.warning("Training from scratch...")
+    #     else:
+    #         logger.info(f"Loading pretrained weights from {pretrained_path}")
+    #         try:
+    #             pretrained_state_dict = torch.load(pretrained_path, map_location=device)
+    #             # Try to load with strict=False to handle minor mismatches
+    #             incompatibles = sttran_gaze_model.load_state_dict(pretrained_state_dict, strict=False)
+    #             if incompatibles.missing_keys:
+    #                 logger.warning(f"Missing keys: {incompatibles.missing_keys}")
+    #             if incompatibles.unexpected_keys:
+    #                 logger.warning(f"Unexpected keys: {incompatibles.unexpected_keys}")
+    #             logger.info("Pretrained weights loaded successfully!")
+    #         except Exception as e:
+    #             logger.error(f"Error loading pretrained weights: {e}")
+    #             logger.error("Training from scratch...")
     # Load pretrained weights if provided
     if opt.pretrained:
-        pretrained_path = Path(opt.pretrained)
-        if not pretrained_path.exists():
-            logger.warning(f"Pretrained weights file not found: {pretrained_path}")
-            logger.warning("Training from scratch...")
-        else:
-            logger.info(f"Loading pretrained weights from {pretrained_path}")
-            try:
-                pretrained_state_dict = torch.load(pretrained_path, map_location=device)
-                # Try to load with strict=False to handle minor mismatches
-                incompatibles = sttran_gaze_model.load_state_dict(pretrained_state_dict, strict=False)
-                if incompatibles.missing_keys:
-                    logger.warning(f"Missing keys: {incompatibles.missing_keys}")
-                if incompatibles.unexpected_keys:
-                    logger.warning(f"Unexpected keys: {incompatibles.unexpected_keys}")
-                logger.info("Pretrained weights loaded successfully!")
-            except Exception as e:
-                logger.error(f"Error loading pretrained weights: {e}")
-                logger.error("Training from scratch...")
+        logger.info(f"Loading pretrained weights from {opt.pretrained}")
+        try:
+            import torch.nn.functional as F
+            checkpoint = torch.load(opt.pretrained, map_location=device)
+            
+            # Lấy state_dict từ checkpoint
+            pretrained_dict = checkpoint["state_dict"] if "state_dict" in checkpoint else checkpoint
+            model_dict = sttran_gaze_model.state_dict()
+            
+            new_state_dict = {}
+            # Các key liên quan đến vị trí khung hình cần nội suy
+            pos_keys = ['glocal_transformer.pos_encoding_query', 'glocal_transformer.pos_encoding_cross']
 
+            for k, v in pretrained_dict.items():
+                if k in model_dict:
+                    # 1. Xử lý nội suy Positional Encoding (Fix lỗi sliding window 6 -> 15)
+                    if k in pos_keys and v.shape != model_dict[k].shape:
+                        logger.info(f"Đang nội suy {k} từ {v.shape} sang {model_dict[k].shape}")
+                        # Chuyển [6, dim] -> [1, dim, 6]
+                        v_resized = v.unsqueeze(0).transpose(1, 2)
+                        # Nội suy lên 15 (hoặc giá trị sliding_window mới)
+                        v_resized = F.interpolate(v_resized, size=model_dict[k].shape[0], mode='linear', align_corners=True)
+                        # Chuyển lại về [15, dim]
+                        new_state_dict[k] = v_resized.transpose(1, 2).squeeze(0)
+                    
+                    # 2. Bỏ qua lớp object embedding nếu lệch class (78 vs 4)
+                    elif k == 'obj_embed.weight' and v.shape != model_dict[k].shape:
+                        logger.warning(f"Bỏ qua {k}: Dataset cũ có 78 class, dataset của bạn có {model_dict[k].shape[0]} class.")
+                        continue
+                        
+                    # 3. Giữ các lớp có kích thước khớp
+                    elif v.shape == model_dict[k].shape:
+                        new_state_dict[k] = v
+                    else:
+                        logger.warning(f"Bỏ qua {k} do không khớp kích thước: {v.shape} vs {model_dict[k].shape}")
+
+            # Load trọng số vào model
+            incompatibles = sttran_gaze_model.load_state_dict(new_state_dict, strict=False)
+            
+            if incompatibles.missing_keys:
+                logger.info(f"Các lớp sẽ học lại từ đầu: {len(incompatibles.missing_keys)} lớp")
+            logger.info("---------- Tải trọng số pretrain thành công! ----------")
+
+        except Exception as e:
+            logger.error(f"Lỗi khi tải trọng số: {e}")
+            logger.info("Đang tiến hành huấn luyện từ đầu (Training from scratch)...")
     ## Loss function & optimizer
     # Multi-label margin loss
     if loss_type == "mlm":

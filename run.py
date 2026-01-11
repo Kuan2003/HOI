@@ -72,7 +72,7 @@ def main(opt):
     out = opt.out
     output_folder = Path(out) / video_name
     if not output_folder.exists():
-        output_folder.mkdir()
+        output_folder.mkdir(parents=True, exist_ok=True)
     trace_file = output_folder / f"{video_name}_trace.json"
     gaze_file = output_folder / f"{video_name}_gaze.json"
     hoi_file = output_folder / f"{video_name}_hoi.txt"
@@ -98,7 +98,7 @@ def main(opt):
     # Object Tracking module
     print(f"======================================")
     object_tracking_module = ObjectTracking(
-        yolo_weights_path=str(yolo_weight_path / "vidor_yolov5l.pt"),
+        yolo_weights_path=str(yolo_weight_path / "yolov5_vidhoi.pt"),#vidor_yolov5l.pt
         deep_sort_model_dir=str(deepsort_weight_path),
         config_path=str(cfg_path / "object_tracking.yaml"),
         device=device,
@@ -127,11 +127,11 @@ def main(opt):
     feature_backbone.eval()
     print(f"Feature backbone loaded from {backbone_model_path}")
     # load available objects and interactions
-    with Path("vidhoi_related/obj_categories.json").open("r") as f:
+    with Path("../../dataset_vidhoi/VidHOI_annotation/obj_categories.json").open("r") as f:
         object_classes = json.load(f)
-    with Path("vidhoi_related/pred_categories.json").open("r") as f:
+    with Path("../../dataset_vidhoi/VidHOI_annotation/pred_categories.json").open("r") as f:
         interaction_classes = json.load(f)
-    with Path("vidhoi_related/pred_split_categories.json").open("r") as f:
+    with Path("../../dataset_vidhoi/VidHOI_annotation/pred_split_categories.json").open("r") as f:
         temp_dict = json.load(f)
         spatial_class_idxes = temp_dict["spatial"]
         action_class_idxes = temp_dict["action"]
@@ -142,33 +142,63 @@ def main(opt):
     num_interaction_classes_loss = num_interaction_classes
     # Transformer setup
     print(f"Transformer configs: {cfg}")
-    loss_type_dict = {"spatial_head": "bce", "action_head": "bce"}
-    separate_head_num = [num_spatial_classes, -1]
-    separate_head_name = ["spatial_head", "action_head"]
-    class_idxes_dict = {"spatial_head": spatial_class_idxes, "action_head": action_class_idxes}
-    loss_gt_dict = {"spatial_head": "spatial_gt", "action_head": "action_gt"}
-    sttran_gaze_model = STTranGazeCrossAttention(
-        num_interaction_classes=num_interaction_classes_loss,
-        obj_class_names=object_classes,
-        spatial_layer_num=sttran_enc_layer_num,
-        cross_layer_num=1,
-        temporal_layer_num=sttran_dec_layer_num - 1,
-        dim_transformer_ffn=dim_transformer_ffn,
-        d_gaze=512,
-        cross_sa=True,
-        cross_ffn=False,
-        global_token=global_token,
-        mlp_projection=mlp_projection,
-        sinusoidal_encoding=sinusoidal_encoding,
-        dropout=0,
-        word_vector_dir=sttran_word_vector_dir,
-        sliding_window=sttran_sliding_window,
-        separate_head=separate_head_num,
-        separate_head_name=separate_head_name,
-    )
+    
+    # Check if using separate heads based on spatial classes
+    if len(spatial_class_idxes) == 0:
+        # No spatial classes, use single head (original model architecture)
+        loss_type_dict = {"interaction_head": "bce"}
+        class_idxes_dict = {"interaction_head": list(range(num_interaction_classes))}
+        loss_gt_dict = {"interaction_head": "interaction_gt"}
+        
+        # Create model without separate heads
+        sttran_gaze_model = STTranGazeCrossAttention(
+            num_interaction_classes=num_interaction_classes_loss,
+            obj_class_names=object_classes,
+            spatial_layer_num=sttran_enc_layer_num,
+            cross_layer_num=1,
+            temporal_layer_num=sttran_dec_layer_num - 1,
+            dim_transformer_ffn=dim_transformer_ffn,
+            d_gaze=512,
+            cross_sa=True,
+            cross_ffn=False,
+            global_token=global_token,
+            mlp_projection=mlp_projection,
+            sinusoidal_encoding=sinusoidal_encoding,
+            dropout=0,
+            word_vector_dir=sttran_word_vector_dir,
+            sliding_window=sttran_sliding_window,
+        )
+    else:
+        # Use separate heads
+        loss_type_dict = {"spatial_head": "bce", "action_head": "bce"}
+        separate_head_num = [num_spatial_classes, -1]
+        separate_head_name = ["spatial_head", "action_head"]
+        class_idxes_dict = {"spatial_head": spatial_class_idxes, "action_head": action_class_idxes}
+        loss_gt_dict = {"spatial_head": "spatial_gt", "action_head": "action_gt"}
+        
+        # Create model with separate heads
+        sttran_gaze_model = STTranGazeCrossAttention(
+            num_interaction_classes=num_interaction_classes_loss,
+            obj_class_names=object_classes,
+            spatial_layer_num=sttran_enc_layer_num,
+            cross_layer_num=1,
+            temporal_layer_num=sttran_dec_layer_num - 1,
+            dim_transformer_ffn=dim_transformer_ffn,
+            d_gaze=512,
+            cross_sa=True,
+            cross_ffn=False,
+            global_token=global_token,
+            mlp_projection=mlp_projection,
+            sinusoidal_encoding=sinusoidal_encoding,
+            dropout=0,
+            word_vector_dir=sttran_word_vector_dir,
+            sliding_window=sttran_sliding_window,
+            separate_head=separate_head_num,
+            separate_head_name=separate_head_name,
+        )
     # load model weights
     sttran_gaze_model = sttran_gaze_model.to(device)
-    incompatibles = sttran_gaze_model.load_state_dict(torch.load(model_path))
+    incompatibles = sttran_gaze_model.load_state_dict(torch.load(model_path), strict=False)
     sttran_gaze_model.eval()
     print(f"STTranGaze loaded. Incompatible keys {incompatibles}")
 
